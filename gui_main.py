@@ -1,129 +1,200 @@
-# /////////////////////////////////////////////////////////////////////////////////////////////
-# ////---- Importovanie potrebných knižníc ----////
-# /////////////////////////////////////////////////////////////////////////////////////////////
-import os
-import sys
+from PySide6.QtWidgets import (
+    QApplication, QWidget, QMainWindow, QVBoxLayout, QHBoxLayout, QLabel,
+    QListWidget, QScrollArea, QDockWidget, QPushButton
+)
+from PySide6.QtCore import Qt, QUrl, QSize
+from PySide6.QtGui import QPixmap, QDesktopServices, QIcon
+import os, sys
 import importlib.util
-import configparser
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QMainWindow, QDockWidget, QWidget, QPushButton, QHBoxLayout, QLabel, QColorDialog
-from PySide6.QtGui import QColor, QPalette
 
-MODULES_DIR = "modules"
+# Cesta k priečinku s modulmi
+module_path = "modules"
 
-# /////////////////////////////////////////////////////////////////////////////////////////////
-# ////---- Funkcie na načítanie a spustenie gui modulov ----////
-# /////////////////////////////////////////////////////////////////////////////////////////////
+def load_modules(module_path):
+    # Načíta názvy všetkých modulov
+    modules = {}
+    if not os.path.exists(module_path):
+        os.makedirs(module_path)
 
-# ////---- Náčítanie GUI aplikácie z modulu ----////
-def find_gui_app(module_path):
-    gui_app_path = os.path.join(module_path, "gui", "app.py")
-    return gui_app_path if os.path.isfile(gui_app_path) else None
-# ////-----------------------------------------------------------------------------------------
+    for module_name in os.listdir(module_path):
+        module_dir = os.path.join(module_path, module_name)
+        if os.path.isdir(module_dir):
+            # widgets ešte nenačítavame – iba si poznačíme prázdny zoznam
+            modules[module_name] = []
+    return modules
 
-# ////---- Vlastný titulok pre dock widget ----////
-def create_custom_titlebar(dock, widget, reload_func, module_path):
-    titlebar = QWidget()
-    layout = QHBoxLayout(titlebar)
-    layout.setContentsMargins(2, 0, 2, 0)
-
-    label = QLabel(dock.windowTitle())
-    btn_settings = QPushButton("⚙")
-    btn_settings.setFixedSize(20, 20)
-
-    def open_settings():
-        color = QColorDialog.getColor(options=QColorDialog.ShowAlphaChannel)
-        if color.isValid():
-            r, g, b, a = color.red(), color.green(), color.blue(), color.alpha()
-            config_path = os.path.join(module_path, "gui", "config.ini")
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
-
-            config = configparser.ConfigParser()
-            config.read(config_path)
-            if "Background" not in config:
-                config["Background"] = {}
-            config["Background"]["mode"] = "translucent" if a < 255 else "color"
-            config["Background"]["color"] = f"{r},{g},{b}"
-            config["Background"]["alpha"] = str(a)
-            with open(config_path, "w", encoding="utf-8") as f:
-                config.write(f)
-            reload_func(widget, dock)
-
-    btn_settings.clicked.connect(open_settings)
-
-    layout.addWidget(label)
-    layout.addStretch()
-    layout.addWidget(btn_settings)
-    titlebar.setLayout(layout)
-
-    dock.setTitleBarWidget(titlebar)
-# ////-----------------------------------------------------------------------------------------
+modules = load_modules(module_path)
 
 # /////////////////////////////////////////////////////////////////////////////////////////////
-# ////---- Hlavné okno aplikácie ----////
+# ////---- Základný widget pre moduly ----////
 # /////////////////////////////////////////////////////////////////////////////////////////////
-class MainWindow(QMainWindow):
+
+class BaseWidget(QWidget):
+    def __init__(self, module_name=None):
+        super().__init__()
+        self.module_name = module_name  # meno modulu, do ktorého widget patrí
+
+    # ---- cesty ----
+    def get_config_path(self, filename):
+        # Vracia absolútnu cestu k súboru v priečinku config
+        return os.path.join("modules", self.module_name, "config", filename)
+
+    def get_data_path(self, filename):
+        # Vracia absolútnu cestu k súboru v priečinku data
+        return os.path.join("modules", self.module_name, "data", filename)
+
+    # ////---- Aktualizácia a zatvorenie widgetu ----////
+    def update_widget(self):
+        # Volané pri refreshi dát (napr. čítanie configu)
+        pass
+
+    def close_widget(self):
+        # Volané pri zatvorení widgetu (vypnutie timerov, uloženie stavu)
+        pass
+
+
+# /////////////////////////////////////////////////////////////////////////////////////////////
+# ////---- Hlavné okno GUI aplikácie ----////
+# /////////////////////////////////////////////////////////////////////////////////////////////
+
+class MainApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Jastronit | Module Loader v1.0.0")
-        self.resize(400, 600) # nastaví veľkosť okna
-        self.setMinimumSize(400, 200)  # <-- minimálna veľkosť okna
 
-        self.setStyleSheet("background-color: #242424;")
-        self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks)
-        self.load_all_modules()
+        self.setFixedSize(1500, 800) # Nastavenie veľkosti okna fixne pre problém s widgetmi
+        self.setWindowTitle("Jastronit | Module Loader v0.1 beta")
 
-    # ////---- Načítanie a pridanie všetkých GUI modulov do docku ----////
-    def load_all_modules(self):
-        all_modules = [os.path.join(MODULES_DIR, d) for d in os.listdir(MODULES_DIR) if os.path.isdir(os.path.join(MODULES_DIR, d))]
-        for module_path in all_modules:
-            gui_app_path = find_gui_app(module_path)
-            if gui_app_path:
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(0,0,0,0)
 
-                # Načítanie modulu priamo tu, aby sme mali prístup k funkciám aj widgetu
-                spec = importlib.util.spec_from_file_location("gui_app", gui_app_path)
-                gui_app = importlib.util.module_from_spec(spec)
-                try:
-                    spec.loader.exec_module(gui_app)
-                except Exception as e:
-                    print(f"Chyba pri načítaní {gui_app_path}: {e}")
+        # Ľavý panel s obrázkom a zoznamom modulov
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(5,5,5,5) #
+
+        # Obrázok
+        self.image_label = QLabel()
+        pixmap = QPixmap(480, 320)
+        pixmap.fill(Qt.lightGray)
+        self.image_label.setPixmap(pixmap)
+        self.image_label.setFixedSize(480, 320)
+        left_layout.addWidget(self.image_label)
+
+        # ---- Načítanie obrázka modulu ----
+        img_path = os.path.join("assets", "pictures", "480x320.png")
+        if os.path.exists(img_path):
+            pixmap = QPixmap(img_path)
+            self.image_label.setPixmap(pixmap.scaled(480, 320, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+        # Scroll zoznam modulov
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        self.list_widget = QListWidget()
+        self.list_widget.addItems(modules.keys())
+        scroll_area.setWidget(self.list_widget)
+        scroll_area.setFixedWidth(480)
+
+        left_layout.addWidget(scroll_area)
+        main_layout.addWidget(left_panel)
+
+        # ---- Jednoduché textové odkazy ----
+        discord_link = QLabel('<a href="https://discord.gg/cqg6dDj5pW">💬 Discord: Join our community and get more modules!</a>')
+        discord_link.setOpenExternalLinks(True)
+
+        coffee_link = QLabel('<a href="https://buymeacoffee.com/jastronit">☕ Buy me a coffee: And support my work</a>')
+        coffee_link.setOpenExternalLinks(True)
+
+        # pridanie do ľavého panelu pod zoznam modulov
+        left_layout.addWidget(discord_link)
+        left_layout.addWidget(coffee_link)
+
+        # Pravá dock oblasť pre widgety
+        self.right_dock = RightDockArea(image_label=self.image_label)
+        main_layout.addWidget(self.right_dock)
+
+        # Pripojenie výberu modulu
+        self.list_widget.currentTextChanged.connect(self.right_dock.load_widgets)
+
+class RightDockArea(QMainWindow):
+    # Pravá dock oblasť správa widgety ako klasický QMainWindow
+    def __init__(self, image_label):
+        super().__init__()
+        self.setFixedWidth(1000)
+        self.setContentsMargins(0,0,0,0)
+        self.setDockNestingEnabled(True)
+
+        self.image_label = image_label  # uložíme si QLabel z ľavej strany
+
+    def load_widgets(self, module_name):
+        # ---- Načítanie obrázka modulu ----
+        img_path = os.path.join(module_path, module_name, "assets", "pictures", "480x320.png")
+        if os.path.exists(img_path):
+            pixmap = QPixmap(img_path)
+            self.image_label.setPixmap(pixmap.scaled(480, 320, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            # fallback – šedé pozadie
+            pixmap = QPixmap(480, 320)
+            pixmap.fill(Qt.lightGray)
+            self.image_label.setPixmap(pixmap)
+
+        # Odstráni existujúce dock widgety
+        for dock in self.findChildren(QDockWidget):
+            self.removeDockWidget(dock)
+            dock.setParent(None)
+
+        module_dir = os.path.join(module_path, module_name, "widgets")
+        if not os.path.exists(module_dir):
+            return print(f"Modul {module_name} nemá žiadne widgety.")
+
+        # Načíta všetky .py súbory v priečinku widgets
+        for fname in os.listdir(module_dir):
+            if fname.endswith(".py"):
+                file_path = os.path.join(module_dir, fname)
+                widget_name = os.path.splitext(fname)[0]
+
+                # načítanie .py súboru ako modul
+                spec = importlib.util.spec_from_file_location(widget_name, file_path)
+                mod = importlib.util.module_from_spec(spec)
+                sys.modules[widget_name] = mod
+                spec.loader.exec_module(mod)
+
+                # vytvorenie widgetu – očakávame triedu odvodenú z BaseWidget
+                widget = None
+                if hasattr(mod, "create_widget"):
+                    widget = mod.create_widget(BaseWidget, module_name)
+                elif hasattr(mod, "Widget"):  # alternatíva: priamo trieda
+                    widget = mod.Widget(module_name)
+
+                if widget is None:
                     continue
 
-                # Získanie widgetu z modulu
-                if hasattr(gui_app, "get_widget"):
-                    widget = gui_app.get_widget()
-                else:
-                    print(f"{gui_app_path}: Chýba funkcia get_widget()")
-                    widget = QWidget()
-
-                dock = QDockWidget(os.path.basename(module_path), self)
+                dock = QDockWidget(widget_name, self)
+                dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+                dock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
                 dock.setWidget(widget)
 
-                # Pripojenie funkcie reload_background po oddokovaní
-                if hasattr(gui_app, "reload_widget_background"):
-                    gui_app.reload_widget_background(widget, dock)
+                # Default dock pozícia
+                area = Qt.RightDockWidgetArea
+                if hasattr(mod, "get_widget_dock_position"):
+                    try:
+                        area = mod.get_widget_dock_position()
+                    except Exception as e:
+                        print(f"Chyba pri získaní pozície widgetu {widget_name}: {e}")
 
-                create_custom_titlebar(dock, widget, gui_app.reload_widget_background, module_path)
-
-                #dock.setAttribute(Qt.WA_TranslucentBackground, True)  # Nastavenie docku ako priehľadného
-                dock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
-
-                # Zisti oblasť z modulu, inak defaultne vpravo
-                area = Qt.RightDockWidgetArea  # Defaultná oblasť
-                if hasattr(gui_app, "get_dock_area"):
-                    area = gui_app.get_dock_area()
                 self.addDockWidget(area, dock)
-            else:
-                print(f"Modul {module_path} nemá GUI appku.")
+
+# ////-----------------------------------------------------------------------------------------
 
 # /////////////////////////////////////////////////////////////////////////////////////////////
-# ////---- Hlavná funkcia pre spustenie GUI aplikácie ----////
+# ////---- Hlavná funkcia pre spustenie GUI aplikácie s callbackom na vypnutie main.py----////
 # /////////////////////////////////////////////////////////////////////////////////////////////
 def main(on_close_callback=None):
     app = QApplication(sys.argv)
 
     # Vytvorenie hlavného okna aplikácie
-    window = MainWindow()
+    window = MainApp()
 
     def handle_close(event):
         if on_close_callback:

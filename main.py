@@ -15,7 +15,7 @@ import gui_main
 
 from glob import glob
 
-MODLOADER_VERSION = (1, 0, 0)  # Verzia loadera modulov
+MODLOADER_VERSION = (0, 1)  # Verzia loadera modulov
 # ////-----------------------------------------------------------------------------------------
 
 # ////---- Načítanie cesty k modulu ----////

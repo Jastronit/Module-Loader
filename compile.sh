@@ -13,6 +13,7 @@ nuitka \
   --plugin-enable=pyside6 \
   --include-module=sqlite3 \
   --include-module=_sqlite3 \
+  --include-data-dir=assets=assets \
   --standalone \
   "$ENTRYPOINT"
 
