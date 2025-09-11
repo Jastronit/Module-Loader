@@ -1,0 +1,104 @@
+# filepath: /home/jastronit/Plocha/python/SCUM/ModularApp/modules/Jastronit | SCUM v1.0 | SinglePlayer | SaveItems v3.3/widgets/custom_overlays.py
+import os
+import json
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QPushButton, QLabel, QListWidget, QHBoxLayout, QSpinBox
+)
+from PySide6.QtCore import Qt
+import overlay_manager
+
+class CustomOverlaysWidget(QWidget):
+    def __init__(self, module_name):
+        super().__init__()
+        self.module_name = module_name
+        self.setLayout(QVBoxLayout())
+
+        # Overlay list
+        self.overlay_list = QListWidget()
+        self.layout().addWidget(QLabel("Custom Overlays:"))
+        self.layout().addWidget(self.overlay_list)
+        self.refresh_overlay_list()
+
+        # Background color settings
+        self.color_settings = QHBoxLayout()
+        self.layout().addLayout(self.color_settings)
+        self.spin_r = QSpinBox(); self.spin_r.setRange(0, 255); self.spin_r.setValue(0)
+        self.spin_g = QSpinBox(); self.spin_g.setRange(0, 255); self.spin_g.setValue(0)
+        self.spin_b = QSpinBox(); self.spin_b.setRange(0, 255); self.spin_b.setValue(0)
+        self.spin_a = QSpinBox(); self.spin_a.setRange(0, 255); self.spin_a.setValue(127)
+        self.color_settings.addWidget(QLabel("R:")); self.color_settings.addWidget(self.spin_r)
+        self.color_settings.addWidget(QLabel("G:")); self.color_settings.addWidget(self.spin_g)
+        self.color_settings.addWidget(QLabel("B:")); self.color_settings.addWidget(self.spin_b)
+        self.color_settings.addWidget(QLabel("A:")); self.color_settings.addWidget(self.spin_a)
+
+        # Buttons
+        btn_create = QPushButton("Create Overlay")
+        btn_create.clicked.connect(self.create_overlay)
+        self.layout().addWidget(btn_create)
+
+        btn_save = QPushButton("Save Overlay")
+        btn_save.clicked.connect(self.save_overlay)
+        self.layout().addWidget(btn_save)
+
+        btn_delete = QPushButton("Delete Overlay")
+        btn_delete.clicked.connect(self.delete_overlay)
+        self.layout().addWidget(btn_delete)
+
+    def refresh_overlay_list(self):
+        self.overlay_list.clear()
+        overlays = self.load_overlays()
+        for overlay in overlays:
+            self.overlay_list.addItem(overlay)
+
+    def load_overlays(self):
+        config_path = os.path.join("modules", self.module_name, "config", "custom_overlays.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                return json.load(f)
+        return []
+
+    def create_overlay(self):
+        overlay_name = f"CustomOverlay_{os.urandom(4).hex()}"
+        overlay_params = {
+            "bg": f"rgba({self.spin_r.value()},{self.spin_g.value()},{self.spin_b.value()},{self.spin_a.value()})",
+            "x": 400,
+            "y": 200,
+            "w": 400,
+            "h": 300
+        }
+        self.add_overlay_to_file(overlay_name, overlay_params)
+        overlay_manager.start_overlay_manager().add_overlay(
+            QWidget(), name=overlay_name, params=overlay_params, module_name=self.module_name
+        )
+        self.refresh_overlay_list()
+
+    def add_overlay_to_file(self, overlay_name, params):
+        overlays = self.load_overlays()
+        overlays.append({overlay_name: params})
+        config_path = os.path.join("modules", self.module_name, "config", "custom_overlays.json")
+        with open(config_path, "w") as f:
+            json.dump(overlays, f, indent=2)
+
+    def save_overlay(self):
+        selected = self.overlay_list.currentItem()
+        if selected:
+            overlay_name = selected.text()
+            # Update the overlay parameters in the JSON file if needed
+            # (This part can be expanded based on your requirements)
+
+    def delete_overlay(self):
+        selected = self.overlay_list.currentItem()
+        if selected:
+            overlay_name = selected.text()
+            overlays = self.load_overlays()
+            overlays = [overlay for overlay in overlays if overlay_name not in overlay]
+            config_path = os.path.join("modules", self.module_name, "config", "custom_overlays.json")
+            with open(config_path, "w") as f:
+                json.dump(overlays, f, indent=2)
+            self.refresh_overlay_list()
+
+def create_widget(BaseClass, module_name):
+    return CustomOverlaysWidget(module_name)
+
+def get_widget_dock_position():
+    return Qt.RightDockWidgetArea, 1
