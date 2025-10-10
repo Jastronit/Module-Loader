@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ENTRYPOINT="main.py"
-OUTPUT_DIR="../build_output"
+OUTPUT_DIR="build_output"
 
 # Vyčistí predchádzajúci build
 rm -rf "$OUTPUT_DIR"
