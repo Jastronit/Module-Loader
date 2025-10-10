@@ -11,6 +11,7 @@ from PySide6.QtGui import QPixmap, QDesktopServices, QIcon
 import os, sys
 import importlib.util
 import overlay_manager
+from shortcut_manager import get_shortcut_manager, stop_shortcut_manager # import shortcut manager
 
 # Cesta k priečinku s modulmi
 module_path = "modules"
@@ -59,7 +60,6 @@ class BaseWidget(QWidget):
         pass
     # ////-------------------------------------------------------------------------------------
 
-
 # /////////////////////////////////////////////////////////////////////////////////////////////
 # ////---- Hlavné okno GUI aplikácie ----////
 # /////////////////////////////////////////////////////////////////////////////////////////////
@@ -69,7 +69,7 @@ class MainApp(QMainWindow):
         super().__init__()
 
         self.setFixedSize(1500, 800) # Nastavenie veľkosti okna fixne pre problém s widgetmi
-        self.setWindowTitle("Jastronit | Module Loader v0.3 alpha")
+        self.setWindowTitle("Jastronit | Module Loader v0.4 beta")
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -126,12 +126,14 @@ class MainApp(QMainWindow):
 
 
     def closeEvent(self, event):
-        return super().closeEvent(event)
+        stop_shortcut_manager()
+        super().closeEvent(event)
 
 class RightDockArea(QMainWindow):
     # Pravá dock oblasť správa widgety ako klasický QMainWindow
     def __init__(self, image_label):
         super().__init__()
+        self.module_widgets = {}
         self.setFixedWidth(1000)
         self.setContentsMargins(0,0,0,0)
         self.setDockNestingEnabled(True)
@@ -150,10 +152,33 @@ class RightDockArea(QMainWindow):
             pixmap.fill(Qt.lightGray)
             self.image_label.setPixmap(pixmap)
 
-        # Odstráni existujúce dock widgety
+        # --- Schovanie/zobrazenie widgetov podľa modulu ---
+        for name, widgets in self.module_widgets.items():
+            for dock in widgets:
+                if name == module_name:
+                    dock.show()
+                else:
+                    dock.hide()
+
+        # Ak už máme widgety načítané, nič nové netreba vytvárať
+        if module_name in self.module_widgets:
+            return
+
+        # Nepotrebujeme mazať docky, len skryť tie, ktoré nepatria aktuálnemu modulu
         for dock in self.findChildren(QDockWidget):
+            if not dock.objectName().startswith(f"{module_name}:"):
+                dock.hide()
+
+        """# Odstráni existujúce dock widgety
+        for dock in self.findChildren(QDockWidget):
+            # --- ODREGISTRUJ SKRATKY Z WIDGETU ---
+            widget = dock.widget()
+            shortcut_mgr = get_shortcut_manager()
+            if hasattr(widget, "get_shortcuts"):
+                for action, shortcut in widget.get_shortcuts().items():
+                    shortcut_mgr.unregister_shortcut(shortcut, widget.handle_shortcut)
             self.removeDockWidget(dock)
-            dock.setParent(None)
+            dock.setParent(None)"""
 
         module_dir = os.path.join(module_path, module_name, "widgets")
         if not os.path.exists(module_dir):
@@ -230,6 +255,12 @@ class RightDockArea(QMainWindow):
                     anchors[order] = dock
                     last_anchor = dock
 
+        # --- Uloženie nových dockov do cache ---
+        new_docks = [dock for dock in self.findChildren(QDockWidget)
+                    if dock.objectName().startswith(f"{module_name}:")]
+        self.module_widgets[module_name] = new_docks
+
+
 # ////-----------------------------------------------------------------------------------------
 
 # /////////////////////////////////////////////////////////////////////////////////////////////
@@ -243,6 +274,8 @@ def main(on_close_callback=None):
 
     # Spustenie overlay managera
     manager = overlay_manager.start_overlay_manager()
+    # Inicializácia shortcut managera
+    shortcut_mgr = get_shortcut_manager()
 
     def handle_close(event):
         overlay_manager.stop_overlay_manager() # Zastavenie overlay managera

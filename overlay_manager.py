@@ -53,20 +53,11 @@ class OverlayWindow(QWidget):
     # ////---- Funkcia pre režim úprav ----////
     def set_edit_mode(self, state):
         self.edit_mode = state
+        self.hide()  # Skryť okno pred zmenou flagov (dôležité pre Windows aj Linux)
         self.setWindowFlag(Qt.WindowTransparentForInput, not state)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
         self.edit_label.setVisible(state)
-        self.show() #"""
-
-        """self.edit_mode = state
-        self.edit_label.setVisible(state)
-        for win in self.overlays.values():
-            win.set_edit_mode(state)
-            win.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-
-            # len ak má byť viditeľný
-            effective = self.global_show and win.user_visible
-            win.setVisible(effective or state)  # v edit móde zobrazí, inak rešpektuje nastavenie"""
+        self.show()  # Znova zobraziť okno po zmene flagov
     # ////-------------------------------------------------------------------------------------
 
     # ////---- Funkcia pre kliknutie a presun ----////
@@ -187,11 +178,10 @@ class OverlayManager:
         self.edit_mode = state
         for win in self.overlays.values():
             win.set_edit_mode(state)
-            win.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-
-            # len ak má byť viditeľný
+            # netreba opakovane volať setWindowFlag tu, už to robí OverlayWindow
+            # len nastav viditeľnosť podľa režimu
             effective = self.global_show and win.user_visible
-            win.setVisible(effective or state)  # v edit móde zobrazí, inak rešpektuje nastavenie
+            win.setVisible(effective or state)
     # ////-------------------------------------------------------------------------------------
 
     # ////---- Funkcia pre klávesové skratky ----////
@@ -288,13 +278,41 @@ class OverlayManager:
                 pass
         return default_params
 
-    def stop(self):
+    """def stop(self):
         for win in self.overlays.values():
             win.close()
         self.listener.stop()
         self.save_overlay_positions()
         self.overlays.clear()
+        self.stop_event = True"""
+    # ////---- Stop overlay managera ----////
+    def stop(self):
+        # 1) Zavri všetky okná
+        for win in list(self.overlays.values()):
+            try:
+                win.close()
+            except Exception:
+                pass
+        # 2) Bezpečne stopni listener
+        try:
+            if self.listener:
+                self.listener.stop()
+                try:
+                    self.listener.join(timeout=0.5)
+                except Exception:
+                    pass
+                self.listener = None
+        except Exception:
+            pass
+        # 3) Ulož pozície
+        try:
+            self.save_overlay_positions()
+        except Exception:
+            pass
+
+        self.overlays.clear()
         self.stop_event = True
+
     # ////-------------------------------------------------------------------------------------
 
 _manager_instance = None
