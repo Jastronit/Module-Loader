@@ -1,0 +1,58 @@
+name: Build with Nuitka and Release (Linux)
+
+on:
+  push:
+    branches:
+      - main   # spúšťa sa pri každom push-i do vetvy main
+
+permissions:
+  contents: write  # potrebné na vytvorenie / úpravu release
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.12.3"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install nuitka PySide6
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Make compile script executable
+      run: chmod +x ./compile_linux.sh
+
+    - name: Run compile script
+      run: ./compile_linux.sh
+
+    - name: Package build output into ZIP
+      run: |
+        # Predpokladáme, že tvoj script ukladá build do priečinka ../build_output
+        # Odporúčam to zmeniť na "build_output" v rámci repozitára, aby to fungovalo v CI
+        if [ -d "../build_output" ]; then
+          cd ..
+          zip -r build_output.zip build_output
+        elif [ -d "build_output" ]; then
+          zip -r build_output.zip build_output
+        else
+          echo "⚠️ Nebol nájdený priečinok build_output"
+          exit 1
+        fi
+
+    - name: Create or update GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: Latest Linux Build
+        body: "Automaticky vytvorený Linux build cez Nuitka po push-i do main."
+        files: build_output.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
