@@ -10,12 +10,9 @@ import threading
 import subprocess
 import platform
 import atexit
-
 import gui_main
 
 from glob import glob
-
-#MODLOADER_VERSION = (0, 1)  # Verzia loadera modulov treba to vymyslieť lepšie
 # ////-----------------------------------------------------------------------------------------
 
 # ////---- Načítanie cesty k modulu ----////
@@ -39,19 +36,24 @@ def find_logic_py(module_path):
 
 # ////---- Spustenie Python logiky ----////
 def run_python_logic(logic_path, stop_event):
-    spec = importlib.util.spec_from_file_location("logic", logic_path)
-    logic = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(logic)
+    try:
+        # Dynamické načítanie modulu z daného súboru
+        spec = importlib.util.spec_from_file_location("logic", logic_path)
+        logic = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(logic)
 
-    # Spustenie logiky
-    if hasattr(logic, "logic_main_init"):
-        logic.logic_main_init(stop_event=stop_event)
-    elif hasattr(logic, "main"):
-        logic.main()
+        # Spustenie logiky
+        if hasattr(logic, "logic_main_init"):
+            logic.logic_main_init(stop_event=stop_event)
+        elif hasattr(logic, "main"):
+            logic.main()
+    except Exception as e:
+        print(f"Chyba pri spustení logiky {logic_path}: {e}")
     # else: nothing to run
 # ////-----------------------------------------------------------------------------------------
 
 # ////---- Spustenie binárneho súboru ----////
+# Poznámka: Toto je pozastavené, pretože open-source moduly by mali používať Python logiku
 def run_binary(module_path):
     system = platform.system().lower()
     if system == "windows":

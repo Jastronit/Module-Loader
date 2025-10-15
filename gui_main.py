@@ -11,10 +11,13 @@ from PySide6.QtGui import QPixmap, QDesktopServices, QIcon
 import os, sys
 import importlib.util
 import overlay_manager
-from shortcut_manager import get_shortcut_manager, stop_shortcut_manager # import shortcut manager
 
 # Cesta k priečinku s modulmi
 module_path = "modules"
+
+# ////---- Načítanie fallback obrázka ----////
+FALLBACK_IMAGE_PATH = os.path.join("assets", "pictures", "480x320.png")
+# ////-----------------------------------------------------------------------------------------
 
 def load_modules(module_path):
     # Načíta názvy všetkých modulov
@@ -69,7 +72,7 @@ class MainApp(QMainWindow):
         super().__init__()
 
         self.setFixedSize(1500, 800) # Nastavenie veľkosti okna fixne pre problém s widgetmi
-        self.setWindowTitle("Jastronit | Module Loader v0.4 beta")
+        self.setWindowTitle("Jastronit | Module Loader v0.5 beta")
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -126,7 +129,6 @@ class MainApp(QMainWindow):
 
 
     def closeEvent(self, event):
-        stop_shortcut_manager()
         super().closeEvent(event)
 
 class RightDockArea(QMainWindow):
@@ -149,7 +151,7 @@ class RightDockArea(QMainWindow):
         else:
             # fallback – šedé pozadie
             pixmap = QPixmap(480, 320)
-            pixmap.fill(Qt.lightGray)
+            pixmap = QPixmap(FALLBACK_IMAGE_PATH)  # fallback obrázok
             self.image_label.setPixmap(pixmap)
 
         # --- Schovanie/zobrazenie widgetov podľa modulu ---
@@ -274,8 +276,6 @@ def main(on_close_callback=None):
 
     # Spustenie overlay managera
     manager = overlay_manager.start_overlay_manager()
-    # Inicializácia shortcut managera
-    shortcut_mgr = get_shortcut_manager()
 
     def handle_close(event):
         overlay_manager.stop_overlay_manager() # Zastavenie overlay managera
