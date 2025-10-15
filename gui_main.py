@@ -11,6 +11,7 @@ from PySide6.QtGui import QPixmap, QDesktopServices, QIcon
 import os, sys
 import importlib.util
 import overlay_manager
+from shortcut_listener import get_shortcut_listener
 
 # Cesta k priečinku s modulmi
 module_path = "modules"

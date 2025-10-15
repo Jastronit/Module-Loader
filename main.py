@@ -11,6 +11,7 @@ import subprocess
 import platform
 import atexit
 import gui_main
+import shortcut_listener
 
 from glob import glob
 # ////-----------------------------------------------------------------------------------------
