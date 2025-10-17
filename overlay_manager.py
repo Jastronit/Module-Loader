@@ -8,7 +8,7 @@ import json
 import importlib.util
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
-from shortcut_listener import get_shortcut_listener
+from shortcut_manager import get_bridge
 
 # /////////////////////////////////////////////////////////////////////////////////////////////
 # ////---- Overlay window class ----////
@@ -54,9 +54,10 @@ class OverlayWindow(QWidget):
     def set_edit_mode(self, state):
         self.edit_mode = state
         self.hide()  # Skryť okno pred zmenou flagov (dôležité pre Windows aj Linux)
-        self.setWindowFlag(Qt.WindowTransparentForInput, not state)
-        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-        self.edit_label.setVisible(state)
+        self.edit_label.setVisible(state) # Zobraziť/Skryť edit label
+        self.setWindowFlag(Qt.WindowTransparentForInput, not state) # Ak nie je v edit režime, ignoruj vstupy
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True) # Nastaví okno vždy navrchu
+        # self.edit_label.setVisible(state) # Zobraziť/Skryť edit label EDIT: prehodené vyššie robilo to problémy
         self.show()  # Znova zobraziť okno po zmene flagov
     # ////-------------------------------------------------------------------------------------
 
@@ -99,7 +100,6 @@ class OverlayWindow(QWidget):
 # /////////////////////////////////////////////////////////////////////////////////////////////
 # ////---- Overlay Manager Class ----////
 # /////////////////////////////////////////////////////////////////////////////////////////////
-
 class OverlayManager:
     def __init__(self):
         self.app = QApplication.instance() or QApplication(sys.argv)
@@ -107,7 +107,12 @@ class OverlayManager:
         self.global_show = True
         self.edit_mode = False
 
-        # ---- Centrálny label pre edit režim ----
+        # ---- QtBridge signály ----
+        self.bridge = get_bridge()
+        self.bridge.on("shortcut.f9", self.toggle_global_show)
+        self.bridge.on("shortcut.f10", self.toggle_edit_mode)
+
+        # ---- Centrálny label pre edit režim ---- EDIT: Plánovaná prerábka
         """self.edit_label = QLabel("EDIT MODE ACTIVE")
         self.edit_label.setStyleSheet("color: yellow; font-size: 24px; background: rgba(0,0,0,150);")
         self.edit_label.setAlignment(Qt.AlignCenter)
@@ -117,11 +122,8 @@ class OverlayManager:
         self.edit_label.resize(200, 50)
         self.edit_label.hide()"""
 
-         # Registrácia do univerzálneho listenera
-        get_shortcut_listener().register_object(self)
-
         self.load_all_overlays()
-        #self.stop_event = None
+        # self.stop_event = None # nie je momentálne používané
 
     # ////---- Načíta všetky overlaye z každého modulu ----////
     def load_all_overlays(self, modules_dir="modules"):
@@ -191,12 +193,11 @@ class OverlayManager:
             # len nastav viditeľnosť podľa režimu
             effective = self.global_show and win.user_visible
             win.setVisible(effective or state)"""
-    # ////-------------------------------------------------------------------------------------
-
+    
     def set_edit_mode(self, state):
         print(f"[OverlayManager] set_edit_mode({state})")
         self.edit_mode = state
-
+    
         # ---- Zmena viditeľnosti centrálneho labelu ----
         if state:
             self.edit_label.show()
@@ -212,15 +213,16 @@ class OverlayManager:
         for win in self.overlays.values():
             # Overlay okno sa nemení, widget spracuje svoj vlastný edit režim
             pass
+    # ////-------------------------------------------------------------------------------------
 
-    # ////---- Funkcia pre spracovanie skratiek ----////
-    def handle_shortcut(self, key: str):
+    # ////---- Funkcia pre spracovanie skratiek ----//// EDIT: Teraz cez QtBridge
+    """def handle_shortcut(self, key: str):
         # Táto funkcia je volaná ShortcutListenerom pri každej stlačenej klávese!
         key = key.lower()
         if key == "f9":
             self.toggle_global_show()
         elif key == "f10":
-            self.toggle_edit_mode()
+            self.toggle_edit_mode()"""
     # ////-------------------------------------------------------------------------------------
 
     # ////---- Prepne globálne zobrazenie všetkých overlayov ----////
@@ -332,9 +334,8 @@ class OverlayManager:
             except Exception:
                 pass
         self.save_overlay_positions()
-        get_shortcut_listener().unregister_object(self)
         self.overlays.clear()
-        #self.stop_event = True
+        # self.stop_event = True # nie je momentálne používané
     # ////-------------------------------------------------------------------------------------
 
 _manager_instance = None

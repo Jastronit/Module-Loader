@@ -11,7 +11,7 @@ from PySide6.QtGui import QPixmap, QDesktopServices, QIcon
 import os, sys
 import importlib.util
 import overlay_manager
-from shortcut_listener import get_shortcut_listener
+import shortcut_manager
 
 # Cesta k priečinku s modulmi
 module_path = "modules"
@@ -278,13 +278,19 @@ def main(on_close_callback=None):
     # Spustenie overlay managera
     manager = overlay_manager.start_overlay_manager()
 
+    # Spustenie shortcut listenera
+    shortcut_listener = shortcut_manager.get_shortcut_listener()
+
     def handle_close(event):
         overlay_manager.stop_overlay_manager() # Zastavenie overlay managera
+        shortcut_manager.stop_shortcut_listener() # Zastavenie shortcut listenera
+        print("[gui_main.py] Ukončenie GUI aplikácie callback o ukončení na main.py")
         if on_close_callback:
             try:
                 on_close_callback()
             except Exception as e:
                 print(f"Chyba pri volaní on_close_callback: {e}")
+        os._exit(0)  # okamžité ukončenie procesu
         event.accept()
     
     window.closeEvent = handle_close  # Priradenie vlastnej funkcie na zatvorenie okna

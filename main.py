@@ -11,7 +11,6 @@ import subprocess
 import platform
 import atexit
 import gui_main
-import shortcut_listener
 
 from glob import glob
 # ////-----------------------------------------------------------------------------------------
@@ -55,7 +54,7 @@ def run_python_logic(logic_path, stop_event):
 
 # ////---- Spustenie binárneho súboru ----////
 # Poznámka: Toto je pozastavené, pretože open-source moduly by mali používať Python logiku
-def run_binary(module_path):
+"""def run_binary(module_path):
     system = platform.system().lower()
     if system == "windows":
         bin_path = os.path.join(module_path, "bin", "windows", "app.exe")
@@ -64,18 +63,20 @@ def run_binary(module_path):
     if os.path.isfile(bin_path):
         subprocess.Popen([bin_path])
     else:
-        print(f"Nenašiel sa žiadny spustiteľný súbor v {module_path}")
+        print(f"Nenašiel sa žiadny spustiteľný súbor v {module_path}")"""
 # ////-----------------------------------------------------------------------------------------
 
 # ////---- Funkcia pre ukončenie všetkých logík ----////
 def stop_all_logics(stop_events, logic_threads, exit_app=False):
     for stop_event in stop_events:
         stop_event.set()  # Nastavenie stop_event, čo ukončí bežiacu logiku
-    for thread in logic_threads:
-        thread.join()  # Čakáme na ukončenie vlákien
-    print("Všetky logiky boli ukončené.")
+    # for thread in logic_threads:
+    #    thread.join()  # Čakáme na ukončenie vlákien EDIT nečakáme trvá to dlho!
+    print("[main.py] Všetky logiky boli ukončené.")
     if exit_app:
-        sys.exit(0)  # Ukončíme aplikáciu
+        from PySide6.QtWidgets import QApplication
+        QApplication.quit()  # korektne ukončí Qt event loop
+        # sys.exit(0)  # Ukončíme aplikáciu
 # ////-----------------------------------------------------------------------------------------
 
 # /////////////////////////////////////////////////////////////////////////////////////////////
